@@ -18,3 +18,5 @@ MAX_BATCH_BYTES = 250_000
 
 EXTRACTION_MODEL = "gpt-4.1-mini-2025-04-14"
 MEMORY_PATH = PROJECT_ROOT / "data" / "processed" / "organizational_memory.json"
+MEMORY_INDEX_PATH = PROJECT_ROOT / "data" / "processed" / "memory_vectors.npz"
+RERANK_MODEL = "gpt-4.1-mini-2025-04-14"

@@ -6,9 +6,33 @@ import tempfile
 from collections.abc import Sequence
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 from athar.models import Chunk, RetrievedEvidence
+
+
+def normalize_vectors(embeddings: ArrayLike) -> NDArray[np.float32]:
+    """Validate and normalize vector rows for either retrieval domain."""
+    matrix = np.array(embeddings, dtype=np.float32, copy=True)
+    if matrix.ndim != 2 or matrix.shape[1] == 0 or not np.isfinite(matrix).all():
+        raise ValueError("Embeddings must be a finite matrix with nonzero dimensions")
+    norms = np.linalg.norm(matrix.astype(np.float64), axis=1)
+    if np.any(norms == 0):
+        raise ValueError("Zero vectors cannot be searched with cosine similarity")
+    normalized = (matrix / norms[:, None]).astype(np.float32)
+    normalized.flags.writeable = False
+    return normalized
+
+
+def cosine_scores(normalized_vectors: NDArray[np.float32], query_embedding: ArrayLike) -> NDArray[np.float64]:
+    """Score an already-normalized matrix against one finite, nonzero query."""
+    query = np.asarray(query_embedding, dtype=np.float64)
+    if query.shape != (normalized_vectors.shape[1],) or not np.isfinite(query).all():
+        raise ValueError("Query embedding must be finite and match index dimensions")
+    norm = np.linalg.norm(query)
+    if norm == 0 or not np.isfinite(norm):
+        raise ValueError("Query embedding must have a finite, nonzero norm")
+    return np.clip(normalized_vectors @ (query / norm), -1.0, 1.0)
 
 
 class LocalVectorStore:
@@ -22,13 +46,7 @@ class LocalVectorStore:
             raise ValueError("Store requires chunks and an embedding model")
         if len({chunk.chunk_id for chunk in chunks}) != len(chunks):
             raise ValueError("Duplicate chunk IDs")
-        if not np.isfinite(matrix).all():
-            raise ValueError("Embeddings must be finite")
-        norms = np.linalg.norm(matrix.astype(np.float64), axis=1)
-        if np.any(norms == 0):
-            raise ValueError("Zero vectors cannot be searched with cosine similarity")
-        self.embeddings = (matrix / norms[:, None]).astype(np.float32)
-        self.embeddings.flags.writeable = False
+        self.embeddings = normalize_vectors(matrix)
         self.chunks = tuple(chunks)
         self.model = model
 
@@ -68,12 +86,6 @@ class LocalVectorStore:
         """Return descending cosine scores; ties preserve original ingestion order."""
         if top_k < 1:
             raise ValueError("top_k must be positive")
-        query = np.asarray(query_embedding, dtype=np.float64)
-        if query.shape != (self.embeddings.shape[1],) or not np.isfinite(query).all():
-            raise ValueError("Query embedding must be finite and match index dimensions")
-        norm = np.linalg.norm(query)
-        if norm == 0 or not np.isfinite(norm):
-            raise ValueError("Query embedding must have a finite, nonzero norm")
-        scores = np.clip(self.embeddings @ (query / norm), -1.0, 1.0)
+        scores = cosine_scores(self.embeddings, query_embedding)
         indices = np.argsort(-scores, kind="stable")[:top_k]
         return [RetrievedEvidence(chunk=self.chunks[int(i)], score=float(scores[i])) for i in indices]
