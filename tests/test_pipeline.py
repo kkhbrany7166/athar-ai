@@ -174,10 +174,11 @@ class EmbeddingTests(unittest.TestCase):
 class ContractTests(unittest.TestCase):
     def test_memory_models(self):
         reference = sample_chunks()[0].model_dump(include={"document_id", "chunk_id", "source", "page"})
+        reference["excerpt"] = sample_chunks()[0].text
         decision = Decision(id="d", title="Change", description="Change supplier", evidence_references=[reference])
         self.assertIsNone(decision.rationale)
-        self.assertEqual(ActionItem(id="a", description="Review").status, "unknown")
-        self.assertEqual(Risk(id="r", description="Delay").severity, "unknown")
+        self.assertEqual(ActionItem(id="a", description="Review", evidence_references=[reference]).status, "unknown")
+        self.assertEqual(Risk(id="r", description="Delay", evidence_references=[reference]).severity, "unknown")
         with self.assertRaises(ValidationError):
             Risk(id="r", description="Delay", severity="invented")
 

@@ -15,3 +15,6 @@ EMBEDDING_BATCH_SIZE = 32
 # Conservative UTF-8 byte bounds avoid needing a tokenizer dependency.
 MAX_INPUT_BYTES = 8000
 MAX_BATCH_BYTES = 250_000
+
+EXTRACTION_MODEL = "gpt-4.1-mini-2025-04-14"
+MEMORY_PATH = PROJECT_ROOT / "data" / "processed" / "organizational_memory.json"
