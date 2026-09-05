@@ -1,0 +1,7 @@
+{"id":"supplier-ar","query":"ليش غيرنا المورد؟","language":"ar","expected_sources":["supplier.md"],"expected_evidence":"Northstar missed two delivery milestones","synthetic":true}
+{"id":"supplier-en","query":"Why was the supplier changed?","language":"en","expected_sources":["supplier.md"],"expected_evidence":"Northstar missed two delivery milestones","synthetic":true}
+{"id":"launch-ar","query":"ليش تأجل المشروع؟","language":"ar","expected_sources":["launch.txt"],"expected_evidence":"security testing found an unresolved authentication defect","synthetic":true}
+{"id":"launch-en","query":"Why was the launch delayed?","language":"en","expected_sources":["launch.txt"],"expected_evidence":"security testing found an unresolved authentication defect","synthetic":true}
+{"id":"action-en","query":"What did Ahmed promise to deliver and by when?","language":"en","expected_sources":["actions_ar.md"],"expected_evidence":"التزم أحمد بإرسال خطة ترحيل البيانات يوم 20 يناير 2026","synthetic":true}
+{"id":"action-ar","query":"وش الأشياء اللي أحمد وعد يسويها؟","language":"ar","expected_sources":["actions_ar.md"],"expected_evidence":"التزم أحمد بإرسال خطة ترحيل البيانات","synthetic":true}
+{"id":"risk-mixed","query":"What is the risk في ترحيل البيانات؟","language":"mixed","expected_sources":["actions_ar.md"],"expected_evidence":"فقدان بعض السجلات أثناء الترحيل","synthetic":true}

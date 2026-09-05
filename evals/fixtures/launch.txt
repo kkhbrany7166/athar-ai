@@ -1,0 +1,2 @@
+Synthetic launch meeting — 2026-01-15
+The project launch was delayed by two weeks because security testing found an unresolved authentication defect. The team agreed that security sign-off was required before release.
