@@ -47,6 +47,81 @@ Each run creates a fresh ignored `data/processed/atlas-demo-*` directory contain
 
 The demo makes **live, billable API requests** and can take several minutes. Defaults are `text-embedding-3-small` for embeddings and `gpt-4.1-mini-2025-04-14` for extraction, reranking, and update matching; see [configuration](athar/config.py). Model output can vary, so reproducible inputs and execution do not imply identical outputs on every run.
 
+## Run the local web application (Phase 5)
+
+The browser calls a small FastAPI adapter, which calls the existing `athar/` engine. AI logic remains in Python; the frontend renders returned records and exact verified excerpts. The CLI above remains available unchanged.
+
+Use **Node.js 20.9+** (verification used Node 24) and the Python setup above. In terminal 1, from the repository root:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn server.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+In terminal 2, from the repository root:
+
+```bash
+cd web
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Open **http://localhost:3000**. `web/.env.local` contains only `NEXT_PUBLIC_ATHAR_API_URL=http://localhost:8000`. **Never put OpenAI credentials in the Next.js environment.** `OPENAI_API_KEY` belongs in the repository-root Python `.env`; the server loads it explicitly. Existing shell variables take precedence.
+
+If multiple Node installations are present, verify the Node version used inside npm scripts. On the verification machine, prepending `/usr/local/bin` to `PATH` selected the installed Node 24 instead of an older Homebrew Node 18:
+
+```bash
+export PATH="/usr/local/bin:$PATH"
+```
+
+### Atlas UI walkthrough
+
+1. Click **Load Project Atlas**. A fresh, clearly labeled synthetic workspace copies the three versioned example files into ignored runtime storage.
+2. Watch **Processing** advance through extraction, lifecycle matching, and indexing. The initial two documents establish memory; the September 7 follow-up updates the original action through the existing matcher. All three become **Ready**.
+3. Explore **Decisions**, or ask “ليش غيرنا المورد؟” / “Why did the team replace Falcon Systems?”. Inspect rationale and the right-hand **Source evidence** panel. Its excerpts are literal backend text, never frontend summaries.
+4. Inspect the August 12 / September 3 timeline. Unknown or unverified dates remain **Unknown date**; order does not assert authority.
+5. Open **Open Loops → Completed** and select Ahmed’s commitment. Its assignment and completion evidence retain one original action identity. The latest known state is separate from the original extracted status.
+
+Model output can vary. Records whose grounding checks fail are omitted and counted in the UI. Loading a new demo runs new live, billable processing; it never injects expected records or uses precomputed answers.
+
+For your own documents, create a **New project**, choose `.txt`, `.md`, or text-based `.pdf` files, then **Process documents**. Each file is limited to 10 MB and each project to 30 files. Add later evidence in a subsequent processing batch to match updates against existing commitments. New standalone records are also extracted. A failed job retains uploads and the previous successful snapshot for retry.
+
+### Local application checks
+
+```bash
+python -m unittest discover -v
+python -m compileall -q athar scripts server tests
+cd web
+npm run typecheck
+npm test
+npm run build
+npx playwright install chromium
+npm run test:ui
+```
+
+The six `test:ui` browser tests mock all API responses and make no billable calls.
+
+The opt-in browser smoke test requires both servers and real OpenAI access; it is deliberately excluded from ordinary tests:
+
+```bash
+cd web
+npx playwright install chromium
+ATHAR_LIVE_DEMO=1 node scripts/verify-atlas.mjs
+```
+
+It checks real Atlas processing, search/evidence equality, timeline dates, same-ID completion, and responsive layout, saving screenshots and a report under ignored `data/processed/web-verification/`. See [web API and persistence notes](docs/web-app.md).
+
+### Local security boundary
+
+- Bind both servers to loopback. This is a single-user, single-Python-worker local application with no authentication; do not expose it to a network.
+- CORS accepts only `http://localhost:3000` and `http://127.0.0.1:3000`; foreign Origin writes and unexpected Host headers are rejected.
+- The API accepts project/file identities, never filesystem paths. Upload filenames are validated and stored under generated UUIDs in ignored `data/processed/web/`, never under `examples/`.
+- Request and file sizes are bounded. UTF-8 text and PDF signatures are checked; parsing rejects unsupported PDFs and missing extractable text. OCR is not included.
+- API errors omit provider bodies, rejected input, stack traces, and credentials. The API does not serve raw upload files, `.env`, or runtime directories.
+- Document text and queries are sent to OpenAI during live processing/search. Local files are not encrypted. There is no automatic retention/deletion UI, job cancellation, or distributed worker coordination.
+
 ## Implemented
 
 - TXT / Markdown / text-based PDF ingestion, with source identity and page metadata.
@@ -59,13 +134,13 @@ The demo makes **live, billable API requests** and can take several minutes. Def
 - Evidence-backed action lifecycle tracking and open-loop detection.
 - Read-only owner/state filters and auditable action histories.
 - Offline test suite and a synthetic, end-to-end Project Atlas demo.
+- Local Next.js / TypeScript application and FastAPI adapter: documents, bilingual search, decision timelines, exact evidence, and open-loop/action-history views.
 
 ## Planned
 
 - Contradiction detection.
 - Grounded natural-language answer synthesis.
 - Agent/tool orchestration.
-- User interface.
 
 No Slack/email integration, autonomous action execution, or general conversational agent is implemented.
 
@@ -73,7 +148,10 @@ No Slack/email integration, autonomous action execution, or general conversation
 
 ```mermaid
 flowchart TD
-    A[Documents and text meeting transcripts] --> B[Ingestion and chunking]
+    Browser[Local browser] --> Web[Next.js / TypeScript]
+    Web --> API[FastAPI workspace adapter]
+    API --> A[Documents and text meeting transcripts]
+    A --> B[Ingestion and chunking]
     B --> C[Multilingual embeddings]
     C --> D[Raw vector retrieval]
     B --> E[Structured extraction]
@@ -101,11 +179,11 @@ Structured memory made the events separate candidates. Event-aware reranking the
 
 ```bash
 python -m unittest discover -v
-python -m compileall -q athar scripts tests
+python -m compileall -q athar scripts server tests
 python -m scripts.demo_atlas --help
 ```
 
-The packaging verification ran **91 offline tests successfully**. Normal tests mock model/API calls; the live Atlas demo separately checks actual model behavior. Tests cover provenance, persistence, ranking, invalid model IDs and evidence, API failure handling, timelines, lifecycle transitions, and idempotency. They do not establish semantic accuracy.
+Phase 5 verification passed **113 Python tests**: the original **91 offline tests** plus **22 API tests** for isolated workspaces, upload validation, safe errors, incremental processing, search, and same-ID action history. Normal tests mock model/API calls; the live Atlas demo separately checks actual model behavior. Tests cover provenance, persistence, ranking, invalid model IDs and evidence, API failure handling, timelines, lifecycle transitions, and idempotency. They do not establish semantic accuracy.
 
 [Evaluation datasets](evals/README.md) contain Arabic, English, and mixed-language questions covering decisions, reasons, actions, risks, history, and event transitions. The 20 focused organizational queries support future Recall@K and top-1 comparisons. They are concentrated on a small synthetic story, and no unsupported accuracy percentages are claimed.
 
@@ -118,13 +196,15 @@ The packaging verification ran **91 offline tests successfully**. Normal tests m
 - PDF OCR, audio transcription, access control, and production concurrency guarantees are absent. This is not a production-grade project management system.
 - Document text, queries, and selected evidence are sent to OpenAI during live operations. Local JSON and vectors are not encrypted.
 - `.env`, virtual environments, bytecode, generated vectors, memory, and runtime/acceptance files are ignored by Git. Only synthetic examples are intended for version control.
-- Dependency ranges are specified rather than a lockfile; verification used the available Python 3.14 environment, with explicit Python 3.11 syntax checks.
+- Python dependency ranges are specified rather than a lockfile; the frontend has a package-lock.json. Python verification used the available Python 3.14 environment, with explicit Python 3.11 syntax checks.
 
 ## Project structure
 
 ```text
 athar-ai/
 ├── athar/                   # Ingestion, extraction, retrieval, evidence, lifecycle logic
+├── server/                  # FastAPI schemas, local workspaces, engine orchestration
+├── web/                     # Next.js / TypeScript UI and frontend tests
 ├── scripts/                 # Demo and focused command-line tools
 │   └── demo_atlas.py
 ├── examples/

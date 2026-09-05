@@ -22,3 +22,11 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Phase 5 frontend and local browser verification
+web/node_modules/
+web/.next/
+web/out/
+web/*.tsbuildinfo
+web/test-results/
+web/playwright-report/
