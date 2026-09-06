@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feature/athar-ui]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Python backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run offline Python tests
+        run: python -m unittest discover -v
+      - name: Compile Python modules
+        run: python -m compileall -q athar server scripts tests
+
+  frontend:
+    name: Next.js frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    env:
+      NEXT_PUBLIC_ATHAR_API_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Check TypeScript
+        run: npm run typecheck
+      - name: Run frontend unit tests
+        run: npm test
+      - name: Install Playwright Chromium and Linux dependencies
+        run: npx playwright install --with-deps chromium
+      # Playwright starts Next.js; all API responses in these tests are mocked.
+      - name: Run mocked browser tests
+        run: npm run test:ui
+      - name: Build frontend
+        run: npm run build
