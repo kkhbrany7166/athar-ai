@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import { MixedText } from "./mixed-text";
+import { kindLabel } from "@/lib/format";
 import type { Selection } from "@/lib/types";
 export function EvidencePanel({
   selection,
@@ -36,8 +38,15 @@ export function EvidencePanel({
       {selection ? (
         <>
           <div className="evidence-intro">
-            <span className="verified">✓ Verified excerpt</span>
-            <h3 dir="auto">{selection.title}</h3>
+            <div className="evidence-context">
+              <span className={`badge ${selection.recordType}`}>
+                {kindLabel(selection.recordType)}
+              </span>
+              <span className="verified">✓ Verified source excerpt</span>
+            </div>
+            <h3 dir="auto">
+              <MixedText text={selection.title} />
+            </h3>
             <p>
               Exact text from the source. Preserved in its original language.
             </p>
@@ -46,15 +55,19 @@ export function EvidencePanel({
             <article className="citation" key={`${ref.chunk_id}-${index}`}>
               <div className="source-line">
                 <span aria-hidden="true">▤</span>
-                <strong dir="auto">{ref.source}</strong>
+                <strong>
+                  <bdi dir="auto">{ref.source}</bdi>
+                </strong>
               </div>
               <div className="source-meta">
                 {ref.page === null ? "Text document" : `Page ${ref.page}`} ·
                 Evidence {index + 1}
               </div>
-              <blockquote dir="auto">{ref.excerpt}</blockquote>
+              <blockquote dir="auto">
+                <MixedText text={ref.excerpt} />
+              </blockquote>
               <details>
-                <summary>Source details</summary>
+                <summary>Technical details</summary>
                 <dl className="technical">
                   <dt>Document ID</dt>
                   <dd>{ref.document_id}</dd>

@@ -37,6 +37,8 @@ export type MemoryItem = {
   description: string;
   rationale?: string | null;
   decision_date?: string | null;
+  severity?: string;
+  status?: string;
   evidence_references: Evidence[];
 };
 export type Action = {
@@ -82,4 +84,8 @@ export type Memory = {
   risks: MemoryItem[];
   rejected_records?: number;
 };
-export type Selection = { title: string; evidence: Evidence[] };
+export type Selection = {
+  title: string;
+  evidence: Evidence[];
+  recordType: "decision" | "action_item" | "risk" | "document";
+};

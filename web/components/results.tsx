@@ -1,4 +1,11 @@
-import type { Action, Decision, Search, Selection } from "@/lib/types";
+import { MixedText } from "./mixed-text";
+import type {
+  Action,
+  Decision,
+  MemoryItem,
+  Search,
+  Selection,
+} from "@/lib/types";
 import { dateLabel, kindLabel, stateLabel } from "@/lib/format";
 export function DecisionRecord({
   decision,
@@ -13,12 +20,20 @@ export function DecisionRecord({
         <span className="badge decision">Decision</span>
         <span>{dateLabel(decision.date, decision.date_status)}</span>
       </div>
-      <h2 dir="auto">{decision.title}</h2>
-      <p dir="auto">{decision.description}</p>
+      <h2 dir="auto">
+        <MixedText text={decision.title} />
+      </h2>
+      <p dir="auto">
+        <MixedText text={decision.description} />
+      </p>
       <div className="rationale">
         <span className="eyebrow">Why this decision</span>
         <p dir="auto">
-          {decision.rationale || "No rationale established in the source."}
+          <MixedText
+            text={
+              decision.rationale || "No rationale established in the source."
+            }
+          />
         </p>
       </div>
       <button
@@ -26,6 +41,7 @@ export function DecisionRecord({
         onClick={() =>
           select({
             title: decision.title,
+            recordType: "decision",
             evidence: decision.evidence_references,
           })
         }
@@ -56,39 +72,76 @@ export function SearchResults({
     );
     return (
       <article
-        className={`record search-record ${index === 0 ? "primary-result" : ""}`}
+        className={`record search-record ${index === 0 ? "primary-result" : ""} ${index === 0 && result.result_type === "decision" ? "decision-summary" : ""}`}
         key={row.candidate_id}
       >
         <div className="record-meta">
           <span className={`badge ${result.result_type}`}>
             {kindLabel(result.result_type)}
           </span>
-          {index === 0 && <span>Most relevant result</span>}
+          {index === 0 && (
+            <span>
+              {result.result_type === "decision"
+                ? "Decision summary"
+                : "Most relevant result"}
+            </span>
+          )}
           {result.result_type === "decision" && (
-            <span>{dateLabel(timeline?.date, timeline?.date_status)}</span>
+            <span className="verified-date">
+              {timeline?.date_status === "verified" && timeline.date
+                ? "Verified date · "
+                : ""}
+              {dateLabel(timeline?.date, timeline?.date_status)}
+            </span>
           )}
         </div>
-        <h2 dir="auto">{title}</h2>
-        {result.item?.title && <p dir="auto">{result.item.description}</p>}
+        <h2 dir="auto">
+          <MixedText text={title} />
+        </h2>
+        {result.item?.title && (
+          <p dir="auto">
+            <MixedText text={result.item.description} />
+          </p>
+        )}
         {result.result_type === "document" && (
           <p className="document-preview" dir="auto">
-            {result.text}
+            <MixedText text={result.text} />
           </p>
         )}
         {result.result_type === "decision" && (
           <div className="rationale">
             <span className="eyebrow">Why this decision</span>
             <p dir="auto">
-              {result.item?.rationale ||
-                "No rationale established in the source."}
+              <MixedText
+                text={
+                  result.item?.rationale ||
+                  "No rationale established in the source."
+                }
+              />
             </p>
+          </div>
+        )}
+        {index === 0 && result.result_type === "decision" && (
+          <div className="summary-sources">
+            <span className="eyebrow">Source</span>
+            {Array.from(
+              new Set(result.evidence_references.map((ref) => ref.source)),
+            ).map((source) => (
+              <bdi key={source} dir="auto">
+                {source}
+              </bdi>
+            ))}
           </div>
         )}
         <div className="record-footer">
           <button
             className="evidence-button"
             onClick={() =>
-              select({ title, evidence: result.evidence_references })
+              select({
+                title,
+                evidence: result.evidence_references,
+                recordType: result.result_type,
+              })
             }
           >
             Inspect evidence <span>↗</span>
@@ -154,7 +207,9 @@ export function ActionHistory({
         <h2>Commitment history</h2>
         <span className={`badge ${item.state}`}>{stateLabel(item.state)}</span>
       </div>
-      <h3 dir="auto">{item.action.description}</h3>
+      <h3 dir="auto">
+        <MixedText text={item.action.description} />
+      </h3>
       <p className="muted small">
         One original commitment, with a preserved trail of later evidence.
       </p>
@@ -179,7 +234,9 @@ export function ActionHistory({
               </span>
               <time>{dateLabel(event.date)}</time>
             </div>
-            <p dir="auto">{event.description}</p>
+            <p dir="auto">
+              <MixedText text={event.description} />
+            </p>
             {!event.applied && (
               <p className="notice">
                 Retained as evidence; not applied to current state.
@@ -190,6 +247,7 @@ export function ActionHistory({
               onClick={() =>
                 select({
                   title: `${stateLabel(event.event_type)} evidence`,
+                  recordType: "action_item",
                   evidence: event.evidence_references,
                 })
               }
@@ -210,5 +268,49 @@ export function ActionHistory({
         <p>The assignment and later events refer to this same action ID.</p>
       </details>
     </section>
+  );
+}
+
+export function RiskRecord({
+  risk,
+  select,
+}: {
+  risk: MemoryItem;
+  select: (s: Selection) => void;
+}) {
+  return (
+    <article className="risk-record">
+      <div className="record-meta">
+        <span className="badge risk">Risk</span>
+        {risk.severity && (
+          <span>
+            Severity:{" "}
+            {stateLabel(
+              risk.severity === "unknown" ? "unknown" : risk.severity,
+            ).replace(" · review needed", "")}
+          </span>
+        )}
+        {risk.status && (
+          <span>
+            Status: {stateLabel(risk.status).replace(" · review needed", "")}
+          </span>
+        )}
+      </div>
+      <p dir="auto">
+        <MixedText text={risk.description} />
+      </p>
+      <button
+        className="evidence-button"
+        onClick={() =>
+          select({
+            title: risk.description,
+            evidence: risk.evidence_references,
+            recordType: "risk",
+          })
+        }
+      >
+        Inspect evidence <span>↗</span>
+      </button>
+    </article>
   );
 }

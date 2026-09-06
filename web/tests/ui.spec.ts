@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { Action, Project } from "../lib/types";
 const id = "offline-project";
-const quote = "أكد أحمد: Nova API جاهز.\n<script>not executable</script>";
+const quote = "أكد أحمد: Nova API جاهز.\nناقش الفريق Falcon Systems.\n<script>not executable</script>";
 const ref = {
   source: "meeting_ar.md",
   page: 2,
@@ -64,7 +64,14 @@ const project: Project = {
 };
 async function mockAPI(
   page: Page,
-  options: { failed?: boolean; upload?: boolean; slowSearch?: boolean } = {},
+  options: {
+    failed?: boolean;
+    upload?: boolean;
+    slowSearch?: boolean;
+    summary?: boolean;
+    risks?: boolean;
+    timeline?: boolean;
+  } = {},
 ) {
   let current = structuredClone(project);
   let releaseSearch: (() => void) | undefined;
@@ -82,7 +89,37 @@ async function mockAPI(
     else if (path === "/api/projects") body = [current];
     else if (path === `/api/projects/${id}`) body = current;
     else if (path === "/api/decisions")
-      body = { timeline: [decision], risks: [], rejected_records: 1 };
+      body = {
+        timeline: options.timeline
+          ? [
+              {
+                ...decision,
+                decision_id: "english-decision",
+                title: "Select Falcon Systems",
+                date: "2026-08-12",
+                date_status: "verified",
+              },
+              decision,
+            ]
+          : [decision],
+        risks: options.risks
+          ? [
+              {
+                id: "risk-1",
+                description: "تأخر Falcon API",
+                severity: "unknown",
+                status: "open",
+                evidence_references: [ref],
+              },
+              {
+                id: "risk-2",
+                description: "No metadata supplied",
+                evidence_references: [ref],
+              },
+            ]
+          : [],
+        rejected_records: 1,
+      };
     else if (path === "/api/actions") body = [action];
     else if (path === "/api/actions/action-1") body = action;
     else if (path === "/api/search") {
@@ -91,8 +128,43 @@ async function mockAPI(
           releaseSearch = resolve;
         });
       body = {
-        results: [],
-        timeline: [],
+        results: options.summary
+          ? [
+              {
+                candidate_id: "c1",
+                base_rank: 2,
+                reranked_rank: 1,
+                base_score: 0.7,
+                relevance: 4,
+                result: {
+                  result_type: "decision",
+                  item_id: "decision-1",
+                  text: decision.description,
+                  cosine_score: 0.7,
+                  item: { id: "decision-1", ...decision },
+                  evidence_references: [ref],
+                },
+              },
+              {
+                candidate_id: "c2",
+                base_rank: 1,
+                reranked_rank: 2,
+                base_score: 0.8,
+                relevance: 2,
+                result: {
+                  result_type: "document",
+                  item_id: null,
+                  text: quote,
+                  cosine_score: 0.8,
+                  item: null,
+                  evidence_references: [ref],
+                },
+              },
+            ]
+          : [],
+        timeline: options.summary
+          ? [{ ...decision, date: "2026-09-03", date_status: "verified" }]
+          : [],
         rerank_status: "applied",
         rerank_model_calls: 1,
       };
@@ -150,6 +222,7 @@ test("unknown dates and exact bilingual evidence are rendered as text", async ({
     .click();
   const panel = page.getByRole("complementary", { name: "Source evidence" });
   expect(await panel.locator("blockquote").textContent()).toBe(quote);
+  await expect(panel.locator("blockquote .mixed-latin").filter({ hasText: "Falcon Systems." })).toHaveText("Falcon Systems.");
   await expect(panel.locator("blockquote")).toHaveAttribute("dir", "auto");
   await expect(panel.locator("script")).toHaveCount(0);
   await expect(panel).toContainText("Page 2");
@@ -209,13 +282,11 @@ test("upload and processing failure retain a clear retry action", async ({
     page.getByRole("heading", { name: decision.title }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Documents", exact: true }).click();
-  await page
-    .getByLabel("Upload documents")
-    .setInputFiles({
-      name: "notes.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("Project note"),
-    });
+  await page.getByLabel("Upload documents").setInputFiles({
+    name: "notes.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("Project note"),
+  });
   await expect(page.locator(".document-row")).toContainText("Uploaded");
   await page.getByRole("button", { name: "Process documents" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
@@ -262,4 +333,100 @@ test("mobile evidence is brought into view without horizontal overflow", async (
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("decision summary uses returned fields and keeps source details collapsed", async ({
+  page,
+}) => {
+  await mockAPI(page, { summary: true });
+  await page.goto("/");
+  await page
+    .getByRole("button", {
+      name: "Why did the team replace Falcon Systems?",
+      exact: true,
+    })
+    .click();
+  const summary = page.locator(".decision-summary");
+  await expect(summary).toContainText("Decision summary");
+  expect(await summary.locator("h2").textContent()).toBe(decision.title);
+  expect(await summary.locator(".rationale p").textContent()).toBe(
+    decision.rationale,
+  );
+  await expect(summary).toContainText("Verified date · 3 Sept 2026");
+  await expect(summary).toContainText(ref.source);
+  await expect(page.locator(".more-results")).not.toHaveAttribute("open", "");
+  const evidence = page.getByRole("complementary", { name: "Source evidence" });
+  await expect(evidence.locator(".badge")).toHaveText("decision");
+  await expect(evidence).toContainText("Verified source excerpt");
+  expect(await evidence.locator("blockquote").textContent()).toBe(quote);
+  await expect(
+    evidence.getByText("document-1", { exact: true }),
+  ).not.toBeVisible();
+  await evidence.getByText("Technical details", { exact: true }).click();
+  await expect(evidence.getByText("document-1", { exact: true })).toBeVisible();
+});
+
+test("timeline events share one axis on desktop and mobile with isolated Latin runs", async ({
+  page,
+}) => {
+  await mockAPI(page, { timeline: true });
+  await page.goto("/");
+  await expect(page.locator(".timeline-title")).toHaveCount(2);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const geometry = await page.locator(".timeline li").evaluateAll((items) =>
+      items.map((item) => {
+        const title = item.querySelector(".timeline-title")!;
+        const date = item.querySelector("time")!;
+        return {
+          titleX: title.getBoundingClientRect().x,
+          dateX: date.getBoundingClientRect().x,
+        };
+      }),
+    );
+    expect(Math.abs(geometry[0].titleX - geometry[1].titleX)).toBeLessThan(2);
+    expect(Math.abs(geometry[1].titleX - geometry[1].dateX)).toBeLessThan(2);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+  await expect(page.locator('.timeline-title bdi[dir="ltr"]')).toHaveText(
+    "Nova",
+  );
+  expect(await page.locator(".timeline-title").allTextContents()).toEqual([
+    "Select Falcon Systems",
+    decision.title,
+  ]);
+});
+
+test("risks show only supplied metadata and the loaded demo has truthful navigation", async ({
+  page,
+}) => {
+  await mockAPI(page, { risks: true });
+  await page.goto("/");
+  const risk = page
+    .locator(".risk-record")
+    .filter({ hasText: "تأخر Falcon API" });
+  await expect(risk).toContainText("Severity: Unknown");
+  await expect(risk).toContainText("Status: Open");
+  const missing = page
+    .locator(".risk-record")
+    .filter({ hasText: "No metadata supplied" });
+  await expect(missing).not.toContainText("Severity:");
+  await expect(missing).not.toContainText("Status:");
+  await risk.getByRole("button", { name: "Inspect evidence ↗" }).click();
+  await expect(
+    page
+      .getByRole("complementary", { name: "Source evidence" })
+      .locator(".badge"),
+  ).toHaveText("risk");
+  await expect(
+    page.getByRole("button", { name: "Reload demo ↗" }),
+  ).toBeVisible();
+  await expect(page.getByText("PHASE 05", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText("Local API connected", { exact: true }),
+  ).toHaveCount(0);
 });

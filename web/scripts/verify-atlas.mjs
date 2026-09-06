@@ -19,7 +19,7 @@ try {
   await page.goto("http://localhost:3000");
   const load = page
     .getByRole("complementary", { name: "Workspace navigation" })
-    .getByRole("button", { name: "Load Project Atlas ↗" });
+    .getByRole("button", { name: /^(Load Project Atlas|Reload demo) ↗$/ });
   await expect(load).toBeEnabled();
   const loadedResponse = page.waitForResponse(
     (r) =>

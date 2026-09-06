@@ -1,4 +1,5 @@
 import type { Decision, Selection } from "@/lib/types";
+import { MixedText } from "./mixed-text";
 import { dateLabel } from "@/lib/format";
 export function Timeline({
   entries,
@@ -29,11 +30,16 @@ export function Timeline({
               onClick={() =>
                 select({
                   title: entry.title,
+                  recordType: "decision",
                   evidence: entry.evidence_references,
                 })
               }
             >
-              <span dir="auto">{entry.title}</span>
+              <span className="timeline-title">
+                <bdi dir="auto">
+                  <MixedText text={entry.title} />
+                </bdi>
+              </span>
               <span className="text-link">Inspect evidence ↗</span>
             </button>
           </li>

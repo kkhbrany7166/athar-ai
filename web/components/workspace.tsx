@@ -6,7 +6,7 @@ import { OpenLoopsView } from "./open-loops-view";
 import type { Action, Memory, Project, Search, Selection } from "@/lib/types";
 import { EvidencePanel } from "./evidence-panel";
 import { Timeline } from "./timeline";
-import { DecisionRecord, SearchResults } from "./results";
+import { DecisionRecord, SearchResults, RiskRecord } from "./results";
 
 const prompts = [
   "ليش غيرنا المورد؟",
@@ -122,7 +122,10 @@ export function Workspace() {
       })
       .catch((e) => {
         if (!stopped) setError(e.message);
-      }).finally(() => { if (!stopped) setMemoryLoading(false); });
+      })
+      .finally(() => {
+        if (!stopped) setMemoryLoading(false);
+      });
     return () => {
       stopped = true;
     };
@@ -220,6 +223,7 @@ export function Workspace() {
             title:
               top.item?.title || top.item?.description || "Document evidence",
             evidence: top.evidence_references,
+            recordType: top.result_type,
           });
       }
     } catch (e) {
@@ -249,6 +253,7 @@ export function Workspace() {
       );
       setSelection({
         title: item.action.description,
+        recordType: "action_item",
         evidence:
           item.history.at(-1)?.evidence_references ||
           item.action.evidence_references,
@@ -372,18 +377,20 @@ export function Workspace() {
             onClick={loadAtlas}
             disabled={!connected || !!busy || processing}
           >
-            {busy === "atlas" ? "Loading…" : "Load Project Atlas"}
+            {busy === "atlas"
+              ? "Loading…"
+              : projects.some((p) => p.synthetic)
+                ? "Reload demo"
+                : "Load Project Atlas"}
             <span>↗</span>
           </button>
           <small>
-            Runs the real Athar pipeline using your Python server’s API access.
+            {projects.some((p) => p.synthetic)
+              ? "Creates a fresh copy of the synthetic demo."
+              : "Explore real decisions and evidence from the synthetic example."}
           </small>
         </div>
-        <div className="sidebar-foot">
-          <span className={`status-dot ${connected ? "online" : ""}`} />
-          {connected ? "Local API connected" : "API disconnected"}
-          <span className="version">PHASE 05</span>
-        </div>
+        <div className="sidebar-foot">Local workspace</div>
       </aside>
       <div className="workspace-body">
         <header className="topbar">
@@ -474,7 +481,10 @@ export function Workspace() {
             </div>
             {loading || memoryLoading ? (
               <div className="loading-state" role="status">
-                <span className="spinner" /> {memoryLoading ? "Loading project memory…" : "Connecting to your local workspace…"}
+                <span className="spinner" />{" "}
+                {memoryLoading
+                  ? "Loading project memory…"
+                  : "Connecting to your local workspace…"}
               </div>
             ) : (
               <>
@@ -621,21 +631,11 @@ export function Workspace() {
                                     <span>{memory.risks.length} records</span>
                                   </div>
                                   {memory.risks.map((risk) => (
-                                    <article className="risk-row" key={risk.id}>
-                                      <span className="badge risk">Risk</span>
-                                      <p dir="auto">{risk.description}</p>
-                                      <button
-                                        className="text-button"
-                                        onClick={() =>
-                                          setSelection({
-                                            title: risk.description,
-                                            evidence: risk.evidence_references,
-                                          })
-                                        }
-                                      >
-                                        Inspect evidence ↗
-                                      </button>
-                                    </article>
+                                    <RiskRecord
+                                      key={risk.id}
+                                      risk={risk}
+                                      select={setSelection}
+                                    />
                                   ))}
                                 </section>
                               )}
@@ -670,7 +670,10 @@ export function Workspace() {
                                 disabled={!connected || !!busy || processing}
                                 onClick={loadAtlas}
                               >
-                                Load Project Atlas <span>↗</span>
+                                {projects.some((p) => p.synthetic)
+                                  ? "Reload demo"
+                                  : "Load Project Atlas"}{" "}
+                                <span>↗</span>
                               </button>
                             </div>
                           )}

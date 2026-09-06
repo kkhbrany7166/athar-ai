@@ -101,7 +101,7 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-The six `test:ui` browser tests mock all API responses and make no billable calls.
+The `test:ui` browser tests mock all API responses and make no billable calls.
 
 The opt-in browser smoke test requires both servers and real OpenAI access; it is deliberately excluded from ordinary tests:
 

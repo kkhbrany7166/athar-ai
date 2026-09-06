@@ -1,3 +1,4 @@
+import { MixedText } from "./mixed-text";
 import type { Action, Project, Selection } from "@/lib/types";
 import { dateLabel, filterActions, stateLabel } from "@/lib/format";
 import { ActionHistory } from "./results";
@@ -119,7 +120,9 @@ export function OpenLoopsView({
                 <span dir="auto">{item.owner || "Unknown owner"}</span>
                 <span>{dateLabel(item.latest_known_date)}</span>
               </div>
-              <h3 dir="auto">{item.action.description}</h3>
+              <h3 dir="auto">
+                <MixedText text={item.action.description} />
+              </h3>
               <p dir="auto">
                 Deadline: {item.action.deadline_text || "Not specified"}
               </p>
